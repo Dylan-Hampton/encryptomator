@@ -14,6 +14,7 @@ int main(int argc, char *argv[]) {
     printf("Please include input, output, and log filenames as arguments\n");
     return 0;
   }
+  //printf("%s\n%s\n%s\n", argv[1], argv[2], argv[3]);
 	init(argv[1], argv[2], argv[3]); 
 	char c;
 	while ((c = read_input()) != EOF) { 
