@@ -45,7 +45,7 @@ void *random_reset() {
 
 void init(char *inputFileName, char *outputFileName, char *logFileName) {
 	pthread_t pid;
-	sem_char_read = sem_open("/sem_test_rese", O_CREAT, 0644, 0);
+	sem_char_read = sem_open("/sem_test_reset", O_CREAT, 0644, 0);
 	sem_unlink("/sem_test_reset");
 	pthread_create(&pid, NULL, &random_reset, NULL);
 	input_file = fopen(inputFileName, "r");
