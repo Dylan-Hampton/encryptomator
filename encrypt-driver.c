@@ -9,7 +9,12 @@ void reset_finished() {
 }
 
 int main(int argc, char *argv[]) {
-	init("in.txt", "out.txt", "log.txt"); 
+  if(argc < 3)
+  {
+    printf("Please include input, output, and log filenames as arguments\n");
+    return 0;
+  }
+	init(argv[1], argv[2], argv[3]); 
 	char c;
 	while ((c = read_input()) != EOF) { 
 		count_input(c); 
