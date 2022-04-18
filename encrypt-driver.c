@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <semaphore.h>
 #include "encrypt-module.h"
 
 int input_head = 0;
@@ -8,6 +9,13 @@ int input_size = -1;
 int output_head = 0;
 int output_tail = 0;
 int output_size = -1;
+
+sem_t sem_input_empty;
+sem_t sem_input_full;
+sem_t sem_output_empty;
+sem_t sem_output_full;
+sem_t sem_input_mutex;
+sem_t sem_output_mutex;
 
 // circular array code borrowed from https://en.wikipedia.org/wiki/Circular_buffer
 
@@ -40,6 +48,26 @@ void reset_requested() {
 void reset_finished() {
 }
 
+void reader() {
+  //c = read_input();
+}
+
+void input_counter() {
+  //count_input(c); 
+}
+
+void encryption(char *output_buffer, char *input_buffer) {
+  output_put(output_buffer, encrypt(input_get(input_buffer))); 
+}
+
+void output_counter() {
+  //count_output(c); 
+}
+
+void writer() {
+  //write_output(c); 
+}
+
 int main(int argc, char *argv[]) {
   if(argc < 3)
   {
@@ -58,16 +86,19 @@ int main(int argc, char *argv[]) {
   }
   char input_buffer[input_size];
   char output_buffer[output_size];
-  //input_put(input_buffer, 5);
-  //output_put(output_buffer, 4);
-  //printf("%d\n", input_get(input_buffer));
-  //printf("%d\n", output_get(output_buffer));
   char c;
+  sem_init(&sem_input_empty, 0, input_size);
+  sem_init(&sem_input_full, 0, input_size);
+  sem_init(&sem_input_mutex, 0, 1);
+  sem_init(&sem_output_empty, 0, output_size);
+  sem_init(&sem_output_full, 0, output_size);
+  sem_init(&sem_output_mutex, 0, 1);
   while ((c = read_input()) != EOF) { 
-    count_input(c); 
-    c = encrypt(c); 
-    count_output(c); 
-    write_output(c); 
+    reader();
+    input_counter();
+    encryption(output_buffer, input_buffer);
+    output_counter();
+    writer();
   } 
   printf("End of file reached.\n"); 
   log_counts();
