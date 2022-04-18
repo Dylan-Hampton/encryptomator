@@ -10,10 +10,12 @@ int output_head = 0;
 int output_tail = 0;
 int output_size = -1;
 
+// buffer control semaphores
 sem_t sem_input_empty;
 sem_t sem_input_full;
 sem_t sem_output_empty;
 sem_t sem_output_full;
+// producer consumer mutexs
 sem_t sem_input_mutex;
 sem_t sem_output_mutex;
 
@@ -48,24 +50,36 @@ void reset_requested() {
 void reset_finished() {
 }
 
-void reader() {
-  //c = read_input();
+void reader(char *input_buffer) {
+  sem_wait(sem_input_mutex);
+  sem_wait(sem_input_empty);
+  input_put(input_buffer, read_input());
+  sem_wait(sem_input_full);
+  sem_post(sem_input_mutex);
 }
 
 void input_counter() {
-  //count_input(c); 
+  //count_input(c);
 }
 
 void encryption(char *output_buffer, char *input_buffer) {
+  sem_wait(sem_input_full);
+  sem_wait(sem_output_empty);
+  sem_wait(sem_input_mutex);
+  sem_wait(sem_output_mutex);
   output_put(output_buffer, encrypt(input_get(input_buffer))); 
+  sem_post(sem_input_full);
+  sem_post(sem_output_empty);
+  sem_post(sem_input_mutex);
+  sem_post(sem_output_mutex);
 }
 
 void output_counter() {
   //count_output(c); 
 }
 
-void writer() {
-  //write_output(c); 
+void writer(char *output_buffer) {
+  write_output(output_get(output_buffer)); 
 }
 
 int main(int argc, char *argv[]) {
@@ -94,11 +108,11 @@ int main(int argc, char *argv[]) {
   sem_init(&sem_output_full, 0, output_size);
   sem_init(&sem_output_mutex, 0, 1);
   while ((c = read_input()) != EOF) { 
-    reader();
+    reader(input_buffer);
     input_counter();
     encryption(output_buffer, input_buffer);
     output_counter();
-    writer();
+    writer(output_buffer);
   } 
   printf("End of file reached.\n"); 
   log_counts();
