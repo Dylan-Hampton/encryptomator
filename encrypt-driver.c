@@ -1,15 +1,37 @@
 #include <stdio.h>
 #include "encrypt-module.h"
 
-int input_head;
-int input_tail;
-int input_size;
+int input_head = 0;
+int input_tail = 0;
+int input_size = -1;
 
-int output_head;
-int output_tail;
-int output_size;
+int output_head = 0;
+int output_tail = 0;
+int output_size = -1;
 
 // circular array code borrowed from https://en.wikipedia.org/wiki/Circular_buffer
+
+void input_put(char *input_buffer, char item) {
+  input_buffer[input_tail++]=item;
+  input_tail %= input_size;
+}
+
+char input_get(char *input_buffer) {
+  int item = input_buffer[input_head++];
+  input_head %= input_size;
+  return item;
+}
+
+void output_put(char *output_buffer, char item) {
+  output_buffer[output_tail++]=item;
+  output_tail %= output_size;
+}
+
+char output_get(char *output_buffer) {
+  int item = output_buffer[output_head++];
+  output_head %= output_size;
+  return item;
+}
 
 void reset_requested() {
   log_counts();
@@ -25,26 +47,21 @@ int main(int argc, char *argv[]) {
     return 0;
   }
   init(argv[1], argv[2], argv[3]); 
-  int n = -1;
-  int m = -1;
-  while (m < 1 && n < 1) {
+  while (input_size < 1 || output_size < 1) {
     printf("Size of input buffer N:\n");
-    scanf("%d", &n);
+    scanf("%d", &input_size);
     printf("Size of output buffer M:\n");
-    scanf("%d", &m);
-    if (m < 1 || n < 1) {
+    scanf("%d", &output_size);
+    if (input_size < 1 || output_size < 1) {
       printf("Buffer sizes must be > 1\n");
     }
   }
-  int input_buffer[n];
-  int output_buffer[m];
-  input_head = 0;
-  input_tail = 0;
-  input_size = n;
-  output_head = 0;
-  output_tail = 0;
-  output_size = m;
-  //printf("N:%d\nM:%d\n", n, m);
+  char input_buffer[input_size];
+  char output_buffer[output_size];
+  //input_put(input_buffer, 5);
+  //output_put(output_buffer, 4);
+  //printf("%d\n", input_get(input_buffer));
+  //printf("%d\n", output_get(output_buffer));
   char c;
   while ((c = read_input()) != EOF) { 
     count_input(c); 
@@ -54,27 +71,5 @@ int main(int argc, char *argv[]) {
   } 
   printf("End of file reached.\n"); 
   log_counts();
-}
-
-void input_put(int *input_buffer, int item) {
-  input_buffer[input_tail++]=item;
-  input_tail %= input_size;
-}
-
-int input_get(int *input_buffer) {
-  int item = input_buffer[input_head++];
-  input_head %= input_size;
-  return item;
-}
-
-void output_put(int *output_buffer, int item) {
-  output_buffer[output_tail++]=item;
-  output_tail %= output_size;
-}
-
-int output_get(int *output_buffer) {
-  int item = output_buffer[output_head++];
-  output_head %= output_size;
-  return item;
 }
 
