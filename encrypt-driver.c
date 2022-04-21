@@ -24,24 +24,37 @@ sem_t sem_output_mutex;
 void input_put(char *input_buffer, char item) {
   input_buffer[input_tail++]=item;
   input_tail %= input_size;
+  printf("input tail: %d\n", input_tail - 1);
 }
 
 char input_get(char *input_buffer) {
-  int item = input_buffer[input_head++];
+  char item = input_buffer[input_head++];
   input_head %= input_size;
   return item;
+  printf("input head: %d\n", input_head - 1);
+}
+
+char input_peek(char *input_buffer) {
+  return input_buffer[input_head];
 }
 
 void output_put(char *output_buffer, char item) {
   output_buffer[output_tail++]=item;
   output_tail %= output_size;
+  printf("output tail: %d\n", output_tail - 1);
 }
 
 char output_get(char *output_buffer) {
-  int item = output_buffer[output_head++];
+  char item = output_buffer[output_head++];
   output_head %= output_size;
   return item;
+  printf("output head: %d\n", output_head - 1);
 }
+
+char output_peek(char *output_buffer) {
+  return output_buffer[output_head];
+}
+
 
 void reset_requested() {
   log_counts();
@@ -51,35 +64,56 @@ void reset_finished() {
 }
 
 void reader(char *input_buffer) {
-  sem_wait(sem_input_mutex);
-  sem_wait(sem_input_empty);
-  input_put(input_buffer, read_input());
-  sem_wait(sem_input_full);
-  sem_post(sem_input_mutex);
+  sem_wait(&sem_input_empty);
+  sem_wait(&sem_input_mutex);
+  char c = read_input();
+  input_put(input_buffer, c);
+  printf("reader: %c\n", input_peek(input_buffer));
+  sem_post(&sem_input_mutex);
+  sem_post(&sem_input_full);
 }
 
-void input_counter() {
-  //count_input(c);
+void input_counter(char *input_buffer) {
+  sem_wait(&sem_input_mutex);
+  printf("input++\n");
+  count_input(input_peek(input_buffer));
+  sem_post(&sem_input_mutex);
 }
 
 void encryption(char *output_buffer, char *input_buffer) {
-  sem_wait(sem_input_full);
-  sem_wait(sem_output_empty);
-  sem_wait(sem_input_mutex);
-  sem_wait(sem_output_mutex);
-  output_put(output_buffer, encrypt(input_get(input_buffer))); 
-  sem_post(sem_input_full);
-  sem_post(sem_output_empty);
-  sem_post(sem_input_mutex);
-  sem_post(sem_output_mutex);
+  sem_wait(&sem_input_full);
+  printf("input_full\n");
+  sem_wait(&sem_output_empty);
+  printf("output_empty\n");
+  sem_wait(&sem_input_mutex);
+  printf("input_mutex\n");
+  sem_wait(&sem_output_mutex);
+  printf("output_mutex\n");
+  char c = encrypt(input_get(input_buffer));
+  printf("encryptor: %c\n", c);
+  output_put(output_buffer, c); 
+  sem_post(&sem_input_mutex);
+  sem_post(&sem_output_mutex);
+  sem_post(&sem_input_full);
+  sem_post(&sem_output_empty);
 }
 
-void output_counter() {
-  //count_output(c); 
+void output_counter(char *output_buffer) {
+  sem_wait(&sem_output_mutex);
+  printf("output++\n");
+  count_output(output_peek(output_buffer)); 
+  sem_post(&sem_output_mutex);
 }
 
-void writer(char *output_buffer) {
-  write_output(output_get(output_buffer)); 
+int writer(char *output_buffer) {
+  sem_wait(&sem_output_empty);
+  sem_wait(&sem_output_mutex);
+  char c = output_get(output_buffer);
+  write_output(c);
+  printf("writer: %c\n", output_peek(output_buffer));
+  sem_post(&sem_output_mutex);
+  sem_post(&sem_output_full); 
+  return c == EOF ? 1 : 0;
 }
 
 int main(int argc, char *argv[]) {
@@ -100,19 +134,19 @@ int main(int argc, char *argv[]) {
   }
   char input_buffer[input_size];
   char output_buffer[output_size];
-  char c;
   sem_init(&sem_input_empty, 0, input_size);
   sem_init(&sem_input_full, 0, input_size);
   sem_init(&sem_input_mutex, 0, 1);
   sem_init(&sem_output_empty, 0, output_size);
   sem_init(&sem_output_full, 0, output_size);
   sem_init(&sem_output_mutex, 0, 1);
-  while ((c = read_input()) != EOF) { 
+  int isEOF = 0; 
+  while (isEOF != 1) { 
     reader(input_buffer);
-    input_counter();
+    input_counter(input_buffer);
     encryption(output_buffer, input_buffer);
-    output_counter();
-    writer(output_buffer);
+    output_counter(output_buffer);
+    isEOF = writer(output_buffer);
   } 
   printf("End of file reached.\n"); 
   log_counts();
