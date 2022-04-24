@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <semaphore.h>
 #include <pthread.h>
 #include "encrypt-module.h"
@@ -14,6 +15,9 @@ int output_head_count = 0;
 int output_head_write = 0;
 int output_tail = 0;
 int output_size = -1;
+
+char* input_buffer;
+char* output_buffer;
 
 sem_t sem_space_input_count;
 sem_t sem_space_input_encrypt;
@@ -78,39 +82,45 @@ void reset_finished() {
 }
 
 int hasEnded() {
-  printf("hello\n");
   int val1, val2, val3, val4;
+  sem_getvalue(&sem_work_input_count, &val1);
+  sem_getvalue(&sem_work_encrypt, &val2);
+  sem_getvalue(&sem_work_output_count, &val3);
+  sem_getvalue(&sem_work_write, &val4);
   if (has_found_eof
-      && sem_getvalue(&sem_work_input_count, &val1) == 0
-      && sem_getvalue(&sem_work_encrypt, &val2) == 0
-      && sem_getvalue(&sem_work_output_count, &val3) == 0
-      && sem_getvalue(&sem_work_write, &val4) == 0
+      && val1 == 0
+      && val2 == 0
+      && val3 == 0
+      && val4 == 0
      ) {
+    printf("End\n");
     return 1;
   }
   return 0;
 }
 
-void* reader(char *input_buffer) {
+void* reader() {
   //input_put(input_buffer, c);
   char c;
   int i = 0;
-  while (i < 10/*(c = read_input()) != EOF*/) {
+  while (!hasEnded()/*(c = read_input()) != EOF*/) {
     sem_wait(&sem_space_input_count);
     sem_wait(&sem_space_input_encrypt);
     sem_wait(&sem_input_mutex);
     printf("reader\n");
     i++;
+    if (i > 10) {
+      has_found_eof = 1;
+    }
     sem_post(&sem_input_mutex);
     sem_post(&sem_work_encrypt);
     sem_post(&sem_work_input_count);
   }
-  has_found_eof = 1;
 }
 
-void* input_counter(char *input_buffer) {
+void* input_counter() {
   //count_input(c);
-  while (!hasEnded()) {
+  while (1) {
     sem_wait(&sem_work_input_count);
     sem_wait(&sem_input_mutex);
     printf("input_counter\n");
@@ -121,10 +131,10 @@ void* input_counter(char *input_buffer) {
   }
 }
 
-void* encryption(char *output_buffer, char *input_buffer) {
+void* encryption() {
   // char c = encrypt(input_get(input_buffer));
   // output_put(output_buffer, c);
-  while (!hasEnded()) {
+  while (1) {
     sem_wait(&sem_work_encrypt);
     sem_wait(&sem_input_mutex);
     printf("encrypt\n");
@@ -142,9 +152,9 @@ void* encryption(char *output_buffer, char *input_buffer) {
   }
 }
 
-void* output_counter(char *output_buffer) {
+void* output_counter() {
   // count_output(c);
-  while (!hasEnded()) {
+  while (1) {
     sem_wait(&sem_work_output_count);
     sem_wait(&sem_output_mutex);
     printf("output_counter\n");
@@ -155,10 +165,10 @@ void* output_counter(char *output_buffer) {
   }
 }
 
-void* writer(char *output_buffer) {
+void* writer() {
   // char c = output_get(output_buffer);
   // write_output(c);
-  while (!hasEnded()) {
+  while (1) {
     sem_wait(&sem_work_write);
     sem_wait(&sem_output_mutex);
     printf("writer\n");
@@ -183,8 +193,9 @@ int main(int argc, char *argv[]) {
       printf("Buffer sizes must be > 1\n");
     }
   }
-  char input_buffer[input_size];
-  char output_buffer[output_size];
+
+  input_buffer = (char*) malloc(sizeof(char) * (input_size + 1));
+  output_buffer = (char*) malloc(sizeof(char) * (output_size + 1));
 
   // initialize space as maximum size
   sem_init(&sem_space_input_encrypt, 0, input_size);
@@ -203,18 +214,17 @@ int main(int argc, char *argv[]) {
   sem_init(&sem_output_mutex, 0, 1);
 
   // initalize 5 threads
-  pthread_create(&reader_t, NULL, reader(input_buffer), NULL);
-  pthread_create(&count_in_t, NULL, input_counter(input_buffer), NULL);
-  pthread_create(&encrypter_t, NULL, encryption(output_buffer, input_buffer), NULL);
-  pthread_create(&count_out_t, NULL, output_counter(output_buffer), NULL);
-  pthread_create(&writer_t, NULL, writer(output_buffer), NULL);
+  printf("hi\n");
+  pthread_create(&reader_t, NULL, reader(), NULL);
+  printf("h32\n");
+  pthread_create(&count_in_t, NULL, input_counter(), NULL);
+  pthread_create(&encrypter_t, NULL, encryption(), NULL);
+  pthread_create(&count_out_t, NULL, output_counter(), NULL);
+  pthread_create(&writer_t, NULL, writer(), NULL);
+  printf("hi2\n");
 
   // join threads at end
   pthread_join(reader_t, NULL);
-  pthread_join(count_in_t, NULL);
-  pthread_join(encrypter_t, NULL);
-  pthread_join(count_out_t, NULL);
-  pthread_join(writer_t, NULL);
 
   printf("End of file reached.\n");
   log_counts();
