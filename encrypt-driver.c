@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <semaphore.h>
+#include <pthread.h>
 #include "encrypt-module.h"
 
 int input_head = 0;
@@ -51,6 +52,7 @@ char output_peek(char *output_buffer) {
   return output_buffer[output_head];
 }
 
+// circular buffer end
 
 void reset_requested() {
   log_counts();
@@ -59,7 +61,7 @@ void reset_requested() {
 void reset_finished() {
 }
 
-int reader(char *input_buffer) {
+void* reader(char *input_buffer) {
   printf("reader\n");
   sem_wait(&sem_input_empty);
   sem_wait(&sem_input_mutex);
@@ -67,17 +69,16 @@ int reader(char *input_buffer) {
   input_put(input_buffer, c);
   sem_post(&sem_input_mutex);
   sem_post(&sem_input_full);
-  return c == EOF ? 1 : 0;
 }
 
-int input_counter(char *input_buffer) {
+void* input_counter(char *input_buffer) {
   printf("input_counter\n");
   sem_wait(&sem_input_mutex);
   count_input(input_peek(input_buffer));
   sem_post(&sem_input_mutex);
 }
 
-void encryption(char *output_buffer, char *input_buffer) {
+void* encryption(char *output_buffer, char *input_buffer) {
   printf("encrypt\n");
   sem_wait(&sem_input_full);
   sem_wait(&sem_output_empty);
@@ -91,22 +92,17 @@ void encryption(char *output_buffer, char *input_buffer) {
   sem_post(&sem_output_full);
 }
 
-int output_counter(char *output_buffer) {
+void* output_counter(char *output_buffer) {
   printf("output_counter\n");
   sem_wait(&sem_output_mutex);
   count_output(output_peek(output_buffer)); 
   sem_post(&sem_output_mutex);
 }
 
-void writer(char *output_buffer) {
+void* writer(char *output_buffer) {
   printf("write\n");
   sem_wait(&sem_output_full);
   sem_wait(&sem_output_mutex);
-  for (int i = 0; i < 100999999890000; i++){
-    if (i % 10000 == 9999) {
-      printf("");
-    }
-  }
   char c = output_get(output_buffer);
   write_output(c);
   sem_post(&sem_output_mutex);
@@ -131,29 +127,45 @@ int main(int argc, char *argv[]) {
   }
   char input_buffer[input_size];
   char output_buffer[output_size];
-  pthread_t reader;
-  pthread_t count_in;
-  pthread_t encrypter;
-  pthread_t count_out;
-  pthread_t writer;
+
+  sem_t sem_space_input_encrypt;
+  sem_t sem_space_input_count;
+  sem_t sem_space_output_count;
+  sem_t sem_space_output_writer;
+  sem_t sem_work_input_count;
+  sem_t sem_work_encrypt;
+  sem_t sem_work_output_count;
+  sem_t sem_work_write;
+  sem_t sem_input_mutex;
+  sem_t sem_output_mutex;
+
+  // initialize space as maximum size
   sem_init(&sem_space_input_encrypt, 0, input_size);
   sem_init(&sem_space_input_count, 0, input_size);
   sem_init(&sem_space_output_count, 0, output_size);
   sem_init(&sem_space_output_writer, 0, output_size);
-  sem_init(&sem_work_input_count, 0, input_size);
-  sem_init(&sem_work_encrypt, 0, input_size);
-  sem_init(&sem_work_output_count, 0, output_size);
-  sem_init(&sem_work_write, 0, output_size);
+
+  // initialize work as 0 size
+  sem_init(&sem_work_input_count, 0, 0);
+  sem_init(&sem_work_encrypt, 0, 0);
+  sem_init(&sem_work_output_count, 0, 0);
+  sem_init(&sem_work_write, 0, 0);
+
+  // initialize buffer mutexes
   sem_init(&sem_input_mutex, 0, 1);
   sem_init(&sem_output_mutex, 0, 1);
 
-  // pthread counter
-
-  reader(input_buffer);
-  input_counter(input_buffer);
-  encryption(output_buffer, input_buffer);
-  output_counter(output_buffer);
-  writer(output_buffer);
+  // initalize 5 threads
+  pthread_t reader_t;
+  pthread_t count_in_t;
+  pthread_t encrypter_t;
+  pthread_t count_out_t;
+  pthread_t writer_t;
+  pthread_create(&reader_t,NULL,reader(input_buffer),NULL);
+  pthread_create(&count_in_t,NULL,input_counter(input_buffer),NULL);
+  pthread_create(&encrypter_t,NULL,encryption(output_buffer, input_buffer),NULL);
+  pthread_create(&count_out_t,NULL,output_counter(output_buffer),NULL);
+  pthread_create(&writer_t,NULL,writer(output_buffer),NULL);
 
   printf("End of file reached.\n"); 
   log_counts();
