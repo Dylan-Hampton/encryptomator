@@ -22,13 +22,11 @@ sem_t sem_output_mutex;
 // circular array code borrowed from https://en.wikipedia.org/wiki/Circular_buffer
 
 void input_put(char *input_buffer, char item) {
-  printf("input tail: %d\n", input_tail);
   input_buffer[input_tail++]=item;
   input_tail %= input_size;
 }
 
 char input_get(char *input_buffer) {
-  printf("input head: %d\n", input_head);
   char item = input_buffer[input_head++];
   input_head %= input_size;
   return item;
@@ -39,13 +37,11 @@ char input_peek(char *input_buffer) {
 }
 
 void output_put(char *output_buffer, char item) {
-  printf("output tail: %d\n", output_tail);
   output_buffer[output_tail++]=item;
   output_tail %= output_size;
 }
 
 char output_get(char *output_buffer) {
-  printf("output head: %d\n", output_head);
   char item = output_buffer[output_head++];
   output_head %= output_size;
   return item;
@@ -64,35 +60,30 @@ void reset_finished() {
 }
 
 int reader(char *input_buffer) {
+  printf("reader\n");
   sem_wait(&sem_input_empty);
   sem_wait(&sem_input_mutex);
   char c = read_input();
   input_put(input_buffer, c);
-  printf("reader: %c\n", input_peek(input_buffer));
   sem_post(&sem_input_mutex);
   sem_post(&sem_input_full);
   return c == EOF ? 1 : 0;
 }
 
-int input_counter(char *input_buffer, int *i) {
+int input_counter(char *input_buffer) {
+  printf("input_counter\n");
   sem_wait(&sem_input_mutex);
-  printf("input++\n");
-  *i++;
   count_input(input_peek(input_buffer));
   sem_post(&sem_input_mutex);
 }
 
 void encryption(char *output_buffer, char *input_buffer) {
+  printf("encrypt\n");
   sem_wait(&sem_input_full);
-  printf("input_full\n");
   sem_wait(&sem_output_empty);
-  printf("output_empty\n");
   sem_wait(&sem_input_mutex);
-  printf("input_mutex\n");
   sem_wait(&sem_output_mutex);
-  printf("output_mutex\n");
   char c = encrypt(input_get(input_buffer));
-  printf("encryptor: %c\n", c);
   output_put(output_buffer, c); 
   sem_post(&sem_input_mutex);
   sem_post(&sem_output_mutex);
@@ -100,20 +91,24 @@ void encryption(char *output_buffer, char *input_buffer) {
   sem_post(&sem_output_full);
 }
 
-int output_counter(char *output_buffer, int *i) {
+int output_counter(char *output_buffer) {
+  printf("output_counter\n");
   sem_wait(&sem_output_mutex);
-  printf("output++\n");
-  *i--;
   count_output(output_peek(output_buffer)); 
   sem_post(&sem_output_mutex);
 }
 
 void writer(char *output_buffer) {
+  printf("write\n");
   sem_wait(&sem_output_full);
   sem_wait(&sem_output_mutex);
+  for (int i = 0; i < 100999999890000; i++){
+    if (i % 10000 == 9999) {
+      printf("");
+    }
+  }
   char c = output_get(output_buffer);
   write_output(c);
-  printf("writer: %c\n", output_peek(output_buffer));
   sem_post(&sem_output_mutex);
   sem_post(&sem_output_empty); 
 }
@@ -136,21 +131,30 @@ int main(int argc, char *argv[]) {
   }
   char input_buffer[input_size];
   char output_buffer[output_size];
-  sem_init(&sem_input_empty, 0, input_size);
-  sem_init(&sem_input_full, 0, input_size);
+  pthread_t reader;
+  pthread_t count_in;
+  pthread_t encrypter;
+  pthread_t count_out;
+  pthread_t writer;
+  sem_init(&sem_space_input_encrypt, 0, input_size);
+  sem_init(&sem_space_input_count, 0, input_size);
+  sem_init(&sem_space_output_count, 0, output_size);
+  sem_init(&sem_space_output_writer, 0, output_size);
+  sem_init(&sem_work_input_count, 0, input_size);
+  sem_init(&sem_work_encrypt, 0, input_size);
+  sem_init(&sem_work_output_count, 0, output_size);
+  sem_init(&sem_work_write, 0, output_size);
   sem_init(&sem_input_mutex, 0, 1);
-  sem_init(&sem_output_empty, 0, output_size);
-  sem_init(&sem_output_full, 0, output_size);
   sem_init(&sem_output_mutex, 0, 1);
-  int isEOF = 0; 
-  int i = 0;
-  while (isEOF != 1 || i != 0) { 
-    isEOF = reader(input_buffer);
-    input_counter(input_buffer, &i);
-    encryption(output_buffer, input_buffer);
-    output_counter(output_buffer, &i);
-    writer(output_buffer);
-  } 
+
+  // pthread counter
+
+  reader(input_buffer);
+  input_counter(input_buffer);
+  encryption(output_buffer, input_buffer);
+  output_counter(output_buffer);
+  writer(output_buffer);
+
   printf("End of file reached.\n"); 
   log_counts();
 }
