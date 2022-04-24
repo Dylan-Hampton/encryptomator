@@ -103,7 +103,7 @@ void* reader() {
   //input_put(input_buffer, c);
   char c;
   int i = 0;
-  while (!hasEnded()/*(c = read_input()) != EOF*/) {
+  while (1/*(c = read_input()) != EOF*/) {
     printf("reader wait: sem_space_input_count\n");
     sem_wait(&sem_space_input_count);
     printf("reader wait: sem_space_input_encrypt\n");
@@ -111,10 +111,10 @@ void* reader() {
     printf("reader wait: sem_input_mutex\n");
     sem_wait(&sem_input_mutex);
     printf("reader\n");
-    i++;
-    if (i > 10) {
-      has_found_eof = 1;
-    }
+    //i++;
+    //if (i > 10) {
+    //  has_found_eof = 1;
+    //}
     sem_post(&sem_input_mutex);
     printf("reader post: sem_input_mutex\n");
     sem_post(&sem_work_encrypt);
@@ -242,12 +242,12 @@ int main(int argc, char *argv[]) {
 
   // initalize 5 threads
   printf("hi\n");
-  pthread_create(&reader_t, NULL, reader(), NULL);
+  pthread_create(&reader_t, NULL, reader, NULL);
   printf("h32\n");
-  pthread_create(&count_in_t, NULL, input_counter(), NULL);
-  pthread_create(&encrypter_t, NULL, encryption(), NULL);
-  pthread_create(&count_out_t, NULL, output_counter(), NULL);
-  pthread_create(&writer_t, NULL, writer(), NULL);
+  pthread_create(&count_in_t, NULL, input_counter, NULL);
+  pthread_create(&encrypter_t, NULL, encryption, NULL);
+  pthread_create(&count_out_t, NULL, output_counter, NULL);
+  pthread_create(&writer_t, NULL, writer, NULL);
   printf("hi2\n");
 
   // join threads at end
