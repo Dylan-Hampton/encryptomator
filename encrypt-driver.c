@@ -72,6 +72,24 @@ char output_get_write() {
   return item;
 }
 
+void print_buffer_input() {
+  printf("ibuffer: \n");
+  printf("isize: %d\n", input_size);
+  for (int i = 0; i < input_size; i++) {
+    printf("%d: %c \n", i, input_buffer[i]);
+  }
+  printf("\n");
+}
+
+void print_buffer_output() {
+  printf("obuffer: \n");
+  printf("osize: %d\n", output_size);
+  for (int i = 0; i < output_size; i++) {
+    printf("%d: %c \n", i, output_buffer[i]);
+  }
+  printf("\n");
+}
+
 // circular buffer end
 
 void reset_requested() {
@@ -111,6 +129,8 @@ void* reader() {
       sem_wait(&sem_input_mutex);
       printf("reader\n");
       input_put(c);
+      print_buffer_input();
+      print_buffer_output();
       sem_post(&sem_input_mutex);
       printf("reader post: sem_input_mutex\n");
       sem_post(&sem_work_encrypt);
@@ -191,6 +211,8 @@ void* writer() {
     sem_wait(&sem_output_mutex);
     printf("writer\n");
     char c = output_get_write();
+    sem_post(&sem_space_output_writer);
+    printf("writer post: sem_output_mutex\n");
     sem_post(&sem_output_mutex);
     printf("writer post: sem_output_mutex\n");
     write_output(c);
