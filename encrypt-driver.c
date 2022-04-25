@@ -29,6 +29,7 @@ sem_t sem_work_output_count;
 sem_t sem_work_write;
 sem_t sem_input_mutex;
 sem_t sem_output_mutex;
+sem_t sem_reader_mutex;
 
 pthread_t reader_t;
 pthread_t count_in_t;
@@ -92,24 +93,45 @@ void print_buffer_output() {
 
 // circular buffer end
 
-void reset_requested() {
-  log_counts();
-}
-
-void reset_finished() {
-}
-
-int hasEnded() {
+int can_reset() {
   int val1, val2, val3, val4;
+  int ret = 0;
   sem_getvalue(&sem_work_input_count, &val1);
   sem_getvalue(&sem_work_encrypt, &val2);
   sem_getvalue(&sem_work_output_count, &val3);
   sem_getvalue(&sem_work_write, &val4);
+  sem_wait(&sem_input_mutex);
+  sem_wait(&sem_output_mutex);
+
+  if (   val1 == 0
+      && val2 == 0
+      && val3 == 0
+      && val4 == 0 
+     ) {
+    printf("Can reset\n");
+    ret = 1;
+  }
+  sem_post(&sem_input_mutex);
+  sem_post(&sem_output_mutex);
+  return ret;
+}
+
+int has_ended() {
+  int val1, val2, val3, val4, val5, val6;
+  sem_getvalue(&sem_work_input_count, &val1);
+  sem_getvalue(&sem_work_encrypt, &val2);
+  sem_getvalue(&sem_work_output_count, &val3);
+  sem_getvalue(&sem_work_write, &val4); 
+  sem_getvalue(&sem_input_mutex, &val5);
+  sem_getvalue(&sem_output_mutex, &val6);
+
   if (has_found_eof
       && val1 == 0
       && val2 == 0
       && val3 == 0
-      && val4 == 0
+      && val4 == 0 
+      && val5 == 1
+      && val6 == 1
      ) {
     printf("End\n");
     return 1;
@@ -117,15 +139,31 @@ int hasEnded() {
   return 0;
 }
 
+void reset_requested() {
+  printf("Waiting for reader mutex\n");
+  sem_wait(&sem_reader_mutex);
+  while(!can_reset()){ }  
+  printf("Work done, reset finished\n");
+  log_counts();
+  reset_finished();
+}
+
+void reset_finished() {
+  sem_post(&sem_reader_mutex);
+  printf("Giving up reader mutex\n");
+}
+
 void* reader() {
   char c;
-  while (!hasEnded()) {
+  while (!has_ended()) {
     while ((c = read_input()) != EOF) {
       printf("reader wait: sem_space_input_count\n");
       sem_wait(&sem_space_input_count);
       printf("reader wait: sem_space_input_encrypt\n");
       sem_wait(&sem_space_input_encrypt);
       printf("reader wait: sem_input_mutex\n");
+      sem_wait(&sem_reader_mutex);
+      sem_post(&sem_reader_mutex);
       sem_wait(&sem_input_mutex);
       printf("reader\n");
       input_put(c);
@@ -254,6 +292,7 @@ int main(int argc, char *argv[]) {
   // initialize buffer mutexes
   sem_init(&sem_input_mutex, 0, 1);
   sem_init(&sem_output_mutex, 0, 1);
+  sem_init(&sem_reader_mutex, 0, 1);
 
   // initalize 5 threads
   pthread_create(&reader_t, NULL, reader, NULL);

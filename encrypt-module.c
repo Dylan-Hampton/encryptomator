@@ -33,13 +33,13 @@ void *random_reset() {
 	while (1) {
 		sem_wait(sem_char_read);
 		read_count++;
-		//if (read_count == 200) {
-		//	reset_requested();
-		//	key += 5;
-		//	clear_counts();
-		//	reset_finished();
-		//	read_count = 0;
-		//}
+		if (read_count == 200) {
+			reset_requested();
+			key += 5;
+			clear_counts();
+			reset_finished();
+			read_count = 0;
+		}
 	}
 }
 
