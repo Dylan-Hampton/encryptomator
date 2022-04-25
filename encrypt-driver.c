@@ -107,6 +107,8 @@ int can_reset() {
       && val2 == 0
       && val3 == 0
       && val4 == 0 
+      && get_input_total_count()
+      == get_output_total_count() 
      ) {
     printf("Can reset\n");
     ret = 1;
@@ -144,8 +146,7 @@ void reset_requested() {
   sem_wait(&sem_reader_mutex);
   while(!can_reset()){ }  
   printf("Work done, reset finished\n");
-  log_counts();
-  reset_finished();
+  log_counts(); 
 }
 
 void reset_finished() {
@@ -163,12 +164,12 @@ void* reader() {
       sem_wait(&sem_space_input_encrypt);
       printf("reader wait: sem_input_mutex\n");
       sem_wait(&sem_reader_mutex);
-      sem_post(&sem_reader_mutex);
       sem_wait(&sem_input_mutex);
       printf("reader\n");
       input_put(c);
       print_buffer_input();
       print_buffer_output();
+      sem_post(&sem_reader_mutex);
       sem_post(&sem_input_mutex);
       printf("reader post: sem_input_mutex\n");
       sem_post(&sem_work_encrypt);
