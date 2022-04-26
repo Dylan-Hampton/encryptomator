@@ -110,7 +110,6 @@ int can_reset() {
       && get_input_total_count()
       == get_output_total_count() 
      ) {
-    printf("Can reset\n");
     ret = 1;
   }
   sem_post(&sem_input_mutex);
@@ -135,47 +134,34 @@ int has_ended() {
       && val5 == 1
       && val6 == 1
      ) {
-    printf("End\n");
     return 1;
   }
   return 0;
 }
 
 void reset_requested() {
-  printf("Waiting for reader mutex\n");
   sem_wait(&sem_reader_mutex);
   while(!can_reset()){ }  
-  printf("Work done, reset finished\n");
   log_counts(); 
 }
 
 void reset_finished() {
   sem_post(&sem_reader_mutex);
-  printf("Giving up reader mutex\n");
 }
 
 void* reader() {
   char c;
   while (!has_ended()) {
     while ((c = read_input()) != EOF) {
-      printf("reader wait: sem_space_input_count\n");
       sem_wait(&sem_space_input_count);
-      printf("reader wait: sem_space_input_encrypt\n");
       sem_wait(&sem_space_input_encrypt);
-      printf("reader wait: sem_input_mutex\n");
       sem_wait(&sem_reader_mutex);
       sem_wait(&sem_input_mutex);
-      printf("reader\n");
       input_put(c);
-      print_buffer_input();
-      print_buffer_output();
       sem_post(&sem_reader_mutex);
       sem_post(&sem_input_mutex);
-      printf("reader post: sem_input_mutex\n");
       sem_post(&sem_work_encrypt);
-      printf("reader post: sem_work_encrypt\n");
       sem_post(&sem_work_input_count);
-      printf("reader post: sem_work_input_count\n");
     }
     has_found_eof = 1;
   }
@@ -183,77 +169,51 @@ void* reader() {
 
 void* input_counter() {
   while (1) {
-    printf("input_counter wait: sem_work_input_count\n");
     sem_wait(&sem_work_input_count);
-    printf("input_counter wait: sem_input_mutex\n");
     sem_wait(&sem_input_mutex);
-    printf("input_counter\n");
     char c = input_get_count();
     sem_post(&sem_input_mutex);
-    printf("input_counter post: sem_input_mutex\n");
     count_input(c);
     sem_post(&sem_space_input_count);
-    printf("input_counter post: sem_space_input_count\n");
   }
 }
 
 void* encryption() {
   while (1) {
-    printf("encryption wait: sem_work_encrypt\n");
     sem_wait(&sem_work_encrypt);
-    printf("encryption wait: sem_input_mutex\n");
     sem_wait(&sem_input_mutex);
-    printf("encrypt\n");
     char c = input_get_encrypt();
     sem_post(&sem_input_mutex);
-    printf("encryption post: sem_input_mutex\n");
     sem_post(&sem_space_input_encrypt);
-    printf("encryption post: sem_space_input_encrypt\n");
     c = encrypt(c);
-    printf("encryption wait: sem_space_output_count\n");
     sem_wait(&sem_space_output_count);
-    printf("encryption wait: sem_space_output_writer\n");
     sem_wait(&sem_space_output_writer);
-    printf("encryption wait: sem_output_mutex\n");
     sem_wait(&sem_output_mutex);
     output_put(c);
     sem_post(&sem_output_mutex);
-    printf("encryption post: sem_output_mutex\n");
     sem_post(&sem_work_output_count);
-    printf("encryption post: sem_work_output_count\n");
     sem_post(&sem_work_write);
-    printf("encryption post: sem_work_write\n");
   }
 }
 
 void* output_counter() {
   while (1) {
-    printf("output_counter wait: sem_work_output_count\n");
     sem_wait(&sem_work_output_count);
-    printf("output_counter wait: sem_output_mutex\n");
     sem_wait(&sem_output_mutex);
-    printf("output_counter\n");
     char c = output_get_count();
     sem_post(&sem_output_mutex);
-    printf("output_counter post: sem_output_mutex\n");
     count_output(c);
     sem_post(&sem_space_output_count);
-    printf("output_counter post: sem_space_output_count\n");
   }
 }
 
 void* writer() {
   while (1) {
-    printf("writer wait: sem_work_write\n");
     sem_wait(&sem_work_write);
-    printf("writer wait: sem_output_mutex\n");
     sem_wait(&sem_output_mutex);
-    printf("writer\n");
     char c = output_get_write();
     sem_post(&sem_space_output_writer);
-    printf("writer post: sem_output_mutex\n");
     sem_post(&sem_output_mutex);
-    printf("writer post: sem_output_mutex\n");
     write_output(c);
   }
 }
