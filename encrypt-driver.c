@@ -158,8 +158,6 @@ void* reader() {
       sem_wait(&sem_reader_mutex);
       sem_wait(&sem_input_mutex);
       input_put(c);
-      print_buffer_input();
-      print_buffer_output();
       sem_post(&sem_reader_mutex);
       sem_post(&sem_input_mutex);
       sem_post(&sem_work_encrypt);
