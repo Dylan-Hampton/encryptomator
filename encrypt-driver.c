@@ -4,13 +4,16 @@
 #include <pthread.h>
 #include "encrypt-module.h"
 
+// if reader thread has found eof yet
 int has_found_eof = 0;
 
+// input buffer attributes
 int input_head_count = 0;
 int input_head_encrypt = 0;
 int input_tail = 0;
 int input_size = -1;
 
+// ouput buffer attributes
 int output_head_count = 0;
 int output_head_write = 0;
 int output_tail = 0;
@@ -39,40 +42,47 @@ pthread_t writer_t;
 
 // circular array code borrowed from https://en.wikipedia.org/wiki/Circular_buffer
 
+// puts one character into the input buffer
 void input_put(char item) {
   input_buffer[input_tail++]=item;
   input_tail %= input_size;
 }
 
+// takes one character out of the input buffer for counting
 char input_get_count() {
   char item = input_buffer[input_head_count++];
   input_head_count %= input_size;
   return item;
 }
 
+// takes one character out of the input buffer for encrypting
 char input_get_encrypt() {
   char item = input_buffer[input_head_encrypt++];
   input_head_encrypt %= input_size;
   return item;
 }
 
+// puts one character into the output buffer
 void output_put(char item) {
   output_buffer[output_tail++]=item;
   output_tail %= output_size;
 }
 
+// takes one character out of the output buffer for counting
 char output_get_count() {
   char item = output_buffer[output_head_count++];
   output_head_count %= output_size;
   return item;
 }
 
+// takes one character out of the output buffer for writing
 char output_get_write() {
   char item = output_buffer[output_head_write++];
   output_head_write %= output_size;
   return item;
 }
 
+// prints the input buffer
 void print_buffer_input() {
   printf("ibuffer: \n");
   printf("isize: %d\n", input_size);
@@ -82,6 +92,7 @@ void print_buffer_input() {
   printf("\n");
 }
 
+// prints the output buffer
 void print_buffer_output() {
   printf("obuffer: \n");
   printf("osize: %d\n", output_size);
@@ -93,6 +104,9 @@ void print_buffer_output() {
 
 // circular buffer end
 
+/**
+ * returns if the buffers are clear to reset
+ */
 int can_reset() {
   int val1, val2, val3, val4;
   int ret = 0;
@@ -117,6 +131,11 @@ int can_reset() {
   return ret;
 }
 
+/**
+ * returns if the entire program has ended
+ * (all threads have no work to be done and have 
+ * read everything from input file)
+ */
 int has_ended() {
   int val1, val2, val3, val4, val5, val6;
   sem_getvalue(&sem_work_input_count, &val1);
@@ -139,16 +158,27 @@ int has_ended() {
   return 0;
 }
 
+/**
+ * waits until the program is in a safe state to reset,
+ * then exits
+ */
 void reset_requested() {
   sem_wait(&sem_reader_mutex);
   while(!can_reset()){ }  
   log_counts(); 
 }
 
+/**
+ * allows the reader to run again when the reset is done
+ */
 void reset_finished() {
   sem_post(&sem_reader_mutex);
 }
 
+/**
+ * every loop reads one character from the input file and puts into the input buffer
+ * will stop when has found end of file, and all other threads have no work to be done
+ */
 void* reader() {
   char c;
   while (!has_ended()) {
@@ -167,6 +197,9 @@ void* reader() {
   }
 }
 
+/**
+ * every loop takes one character from the input buffer and counts it
+ */
 void* input_counter() {
   while (1) {
     sem_wait(&sem_work_input_count);
@@ -178,6 +211,10 @@ void* input_counter() {
   }
 }
 
+/**
+ * every loop takes one character from the input buffer, encrypts it,
+ * and puts the encrypted character into the output buffer
+ */
 void* encryption() {
   while (1) {
     sem_wait(&sem_work_encrypt);
@@ -196,6 +233,9 @@ void* encryption() {
   }
 }
 
+/**
+ * every loop takes one character from the output buffer and counts it
+ */
 void* output_counter() {
   while (1) {
     sem_wait(&sem_work_output_count);
@@ -207,6 +247,9 @@ void* output_counter() {
   }
 }
 
+/**
+ * every loop reads one character from the ouptut buffer and puts into the output file
+ */
 void* writer() {
   while (1) {
     sem_wait(&sem_work_write);
@@ -262,7 +305,7 @@ int main(int argc, char *argv[]) {
   pthread_create(&count_out_t, NULL, output_counter, NULL);
   pthread_create(&writer_t, NULL, writer, NULL);
 
-  // join threads at end
+  // join threads at end, when reader finishes
   pthread_join(reader_t, NULL);
 
   printf("End of file reached.\n");
